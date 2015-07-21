@@ -18,6 +18,9 @@
 #include <linux/stat.h>
 
 #include "power_supply.h"
+#ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
+#include <mach/board_lge.h>
+#endif
 
 /*
  * This is because the name "current" breaks the device attr macro.
@@ -46,6 +49,9 @@ static ssize_t power_supply_show_property(struct device *dev,
 	static char *type_text[] = {
 		"Unknown", "Battery", "UPS", "Mains", "USB",
 		"USB_DCP", "USB_CDP", "USB_ACA", "Wireless", "BMS",
+#ifdef CONFIG_LGE_PM_BATTERY_EXTERNAL_FUELGAUGE
+		"External_Fuelgauge",
+#endif
 		"USB_Parallel"
 	};
 	static char *status_text[] = {
@@ -208,6 +214,22 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(resistance),
 	POWER_SUPPLY_ATTR(resistance_capacitive),
 	POWER_SUPPLY_ATTR(resistance_id),
+#ifdef CONFIG_LGE_PM
+	POWER_SUPPLY_ATTR(safety_timer),
+#endif
+#ifdef CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER
+	POWER_SUPPLY_ATTR(ext_pwr),
+#endif
+#ifdef CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER
+        POWER_SUPPLY_ATTR(charger_timer),
+	POWER_SUPPLY_ATTR(charging_complete),
+#endif
+#ifdef CONFIG_LGE_PM_BATTERY_EXTERNAL_FUELGAUGE
+        POWER_SUPPLY_ATTR(use_fuelgauge),
+#endif
+#ifdef CONFIG_LGE_PM
+	POWER_SUPPLY_ATTR(calculated_soc),
+#endif
 	/* Local extensions */
 	POWER_SUPPLY_ATTR(usb_hc),
 	POWER_SUPPLY_ATTR(usb_otg),

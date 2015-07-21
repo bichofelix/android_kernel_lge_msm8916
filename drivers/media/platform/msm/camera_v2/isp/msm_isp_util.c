@@ -182,6 +182,11 @@ int msm_isp_update_bandwidth(enum msm_isp_hw_client client,
 				isp_bandwidth_mgr.client_info[i].ib;
 		}
 	}
+	#ifdef CONFIG_LGE_UNDERRUN
+	if(path->vectors[0].ib <6400000000) {
+		path->vectors[0].ib = 6400000000;
+	}
+	#endif
 	msm_bus_scale_client_update_request(isp_bandwidth_mgr.bus_client,
 		isp_bandwidth_mgr.bus_vector_active_idx);
 	/* Insert into circular buffer */
@@ -1525,6 +1530,13 @@ static void msm_isp_process_overflow_irq(
 		get_overflow_mask(&overflow_mask);
 	overflow_mask &= *irq_status1;
 
+/*                                                                                           */
+    if(vfe_dev->mk_overflow == 1){
+		overflow_mask = 1;
+		pr_err("%s make overflow\n", __func__);
+    }
+/*                                                                                           */
+
 	if (overflow_mask) {
 		struct msm_isp_event_data error_event;
 
@@ -1536,8 +1548,14 @@ static void msm_isp_process_overflow_irq(
 			return;
 		}
 
-		ISP_DBG("%s: Bus overflow detected: 0x%x, start recovery!\n",
-				__func__, overflow_mask);
+		pr_err("%s: Bus overflow detected: 0x%x, start recovery! irq1 : 0x%x\n",
+				__func__, overflow_mask, *irq_status1);
+
+		/*                                                                                           */
+		overflow_mask = 0;
+		vfe_dev->mk_overflow = 0;
+		/*                                                                                           */
+
 		atomic_set(&vfe_dev->error_info.overflow_state,
 				OVERFLOW_DETECTED);
 		/*Store current IRQ mask*/
@@ -1556,11 +1574,10 @@ static void msm_isp_process_overflow_irq(
 		*irq_status0 = 0;
 		*irq_status1 = 0;
 
-		error_event.frame_id =
-			vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id;
+		error_event.frame_id = vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id;
 		error_event.u.error_info.error_mask = 1 << ISP_WM_BUS_OVERFLOW;
 		msm_isp_send_event(vfe_dev,
-			ISP_EVENT_WM_BUS_OVERFLOW, &error_event);
+			ISP_EVENT_WM_BUS_OVERFLOW , &error_event);
 	}
 }
 
@@ -1596,7 +1613,7 @@ irqreturn_t msm_isp_process_irq(int irq_num, void *data)
 		read_irq_status(vfe_dev, &irq_status0, &irq_status1);
 
 	if ((irq_status0 == 0) && (irq_status1 == 0)) {
-		pr_err_ratelimited("%s:VFE%d irq_status0 & 1 are both 0\n",
+		pr_debug("%s:VFE%d irq_status0 & 1 are both 0\n",
 			__func__, vfe_dev->pdev->id);
 		return IRQ_HANDLED;
 	}
@@ -1730,7 +1747,7 @@ end:
 int msm_isp_open_node(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	struct vfe_device *vfe_dev = v4l2_get_subdevdata(sd);
-	long rc = 0;
+	long rc;
 	ISP_DBG("%s\n", __func__);
 
 	mutex_lock(&vfe_dev->realtime_mutex);
@@ -1810,7 +1827,7 @@ void msm_isp_end_avtimer(void)
 
 int msm_isp_close_node(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
-	long rc = 0;
+	long rc;
 	struct vfe_device *vfe_dev = v4l2_get_subdevdata(sd);
 	ISP_DBG("%s E\n", __func__);
 	mutex_lock(&vfe_dev->realtime_mutex);

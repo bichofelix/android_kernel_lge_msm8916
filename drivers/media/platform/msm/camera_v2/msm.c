@@ -34,6 +34,10 @@
 static struct v4l2_device *msm_v4l2_dev;
 static struct list_head    ordered_sd_list;
 
+#ifdef CONFIG_LGE_UNDERRUN
+static struct pm_qos_request msm_v4l2_pm_qos_request;
+#endif
+
 static struct msm_queue_head *msm_session_q;
 
 /* config node envent queue */
@@ -187,6 +191,26 @@ static inline int __msm_queue_find_command_ack_q(void *d1, void *d2)
 	return (ack->stream_id == *(unsigned int *)d2) ? 1 : 0;
 }
 
+#ifdef CONFIG_LGE_UNDERRUN
+static void msm_pm_qos_add_request(void)
+{
+	pr_info("%s: add request",__func__);
+	pm_qos_add_request(&msm_v4l2_pm_qos_request, PM_QOS_CPU_DMA_LATENCY,
+		PM_QOS_DEFAULT_VALUE);
+}
+
+static void msm_pm_qos_remove_request(void)
+{
+	pr_info("%s: remove request",__func__);
+	pm_qos_remove_request(&msm_v4l2_pm_qos_request);
+}
+
+void msm_pm_qos_update_request(int val)
+{
+	pr_info("%s: update request %d",__func__,val);
+	pm_qos_update_request(&msm_v4l2_pm_qos_request, val);
+}
+#endif
 
 struct msm_session *msm_session_find(unsigned int session_id)
 {
@@ -745,9 +769,14 @@ int msm_post_event(struct v4l2_event *event, int timeout)
 	if (list_empty_careful(&cmd_ack->command_q.list)) {
 		if (!rc) {
 			pr_err("%s: Timed out\n", __func__);
+            rc = -EINVAL; 
 			msm_print_event_error(event);
 			mutex_unlock(&session->lock);
-			return -ETIMEDOUT;
+/*                                                                    */
+            pr_err("%s: ===== Camera Recovery Start! ===== \n", __func__);
+            dump_stack();
+            send_sig(SIGKILL, current, 0);
+/*                                                                    */
 		} else {
 			pr_err("%s: Error: No timeout but list empty!",
 					__func__);
@@ -799,6 +828,11 @@ static int msm_close(struct file *filep)
 	if (!list_empty(&msm_v4l2_dev->subdevs))
 		list_for_each_entry(msm_sd, &ordered_sd_list, list)
 			__msm_sd_close_subdevs(msm_sd, &sd_close);
+
+	#ifdef CONFIG_LGE_UNDERRUN
+	/* remove msm_v4l2_pm_qos_request */
+	msm_pm_qos_remove_request();
+	#endif
 
 	/* send v4l2_event to HAL next*/
 	msm_queue_traverse_action(msm_session_q, struct msm_session, list,
@@ -855,6 +889,11 @@ static int msm_open(struct file *filep)
 	spin_lock_irqsave(&msm_eventq_lock, flags);
 	msm_eventq = filep->private_data;
 	spin_unlock_irqrestore(&msm_eventq_lock, flags);
+
+	#ifdef CONFIG_LGE_UNDERRUN
+	/* register msm_v4l2_pm_qos_request */
+	msm_pm_qos_add_request();
+	#endif
 
 	return rc;
 }

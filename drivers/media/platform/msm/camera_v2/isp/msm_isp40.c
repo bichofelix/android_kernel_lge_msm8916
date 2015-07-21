@@ -315,6 +315,7 @@ static int msm_vfe40_init_hardware(struct vfe_device *vfe_dev)
 		pr_err("%s: irq request failed\n", __func__);
 		goto irq_req_failed;
 	}
+
 	return rc;
 irq_req_failed:
 	iounmap(vfe_dev->vfe_vbif_base);

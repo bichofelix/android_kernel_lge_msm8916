@@ -593,6 +593,11 @@ static int msm_ispif_config(struct ispif_device *ispif,
 
 	for (i = 0; i < params->num; i++) {
 		vfe_intf = params->entries[i].vfe_intf;
+		if (vfe_intf >= VFE_MAX) {
+			pr_err("%s: %d invalid i %d vfe_intf %d\n", __func__,
+				__LINE__, i, vfe_intf);
+			return -EINVAL;
+		}
 		if (!msm_ispif_is_intf_valid(ispif->csid_version,
 				vfe_intf)) {
 			pr_err("%s: invalid interface type\n", __func__);
@@ -1048,10 +1053,18 @@ static void ispif_process_irq(struct ispif_device *ispif,
 	if (out[vfe_id].ispifIrqStatus0 &
 			ISPIF_IRQ_STATUS_PIX_SOF_MASK) {
 		ispif->sof_count[vfe_id].sof_cnt[PIX0]++;
+/*                                                                  */
+             if(ispif->sof_count[vfe_id].sof_cnt[PIX0] <10)
+				pr_err(" %s : %d \n",__func__,ispif->sof_count[vfe_id].sof_cnt[PIX0]);
+/*                                                                  */
 	}
 	if (out[vfe_id].ispifIrqStatus0 &
 			ISPIF_IRQ_STATUS_RDI0_SOF_MASK) {
 		ispif->sof_count[vfe_id].sof_cnt[RDI0]++;
+/*                                                                  */
+             if(ispif->sof_count[vfe_id].sof_cnt[RDI0] <10)
+				pr_err(" %s : %d \n",__func__,ispif->sof_count[vfe_id].sof_cnt[RDI0]);
+/*                                                                  */
 	}
 	if (out[vfe_id].ispifIrqStatus1 &
 			ISPIF_IRQ_STATUS_RDI1_SOF_MASK) {
