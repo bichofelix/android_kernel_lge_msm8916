@@ -1908,6 +1908,7 @@ static void qpnp_adc_tm_low_thr_work(struct work_struct *work)
 	return;
 }
 
+#ifndef CONFIG_LGE_PM
 static irqreturn_t qpnp_adc_tm_low_thr_isr(int irq, void *data)
 {
 	struct qpnp_adc_tm_chip *chip = data;
@@ -1924,6 +1925,7 @@ static irqreturn_t qpnp_adc_tm_low_thr_isr(int irq, void *data)
 
 	return IRQ_HANDLED;
 }
+#endif
 
 static int qpnp_adc_read_temp(struct thermal_zone_device *thermal,
 			     unsigned long *temp)

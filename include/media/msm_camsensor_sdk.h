@@ -104,6 +104,9 @@ enum msm_sensor_power_seq_gpio_t {
 	SENSOR_GPIO_VANA,
 	SENSOR_GPIO_VDIG,
 	SENSOR_GPIO_VAF,
+/*                                      */
+    SENSOR_GPIO_LDAF_EN,
+ /*                                      */
 	SENSOR_GPIO_FL_EN,
 	SENSOR_GPIO_FL_NOW,
 	SENSOR_GPIO_FL_RESET,
@@ -194,6 +197,19 @@ struct msm_sensor_power_setting {
 	void *data[10];
 };
 
+//                                                                     
+#if 1
+struct msm_sensor_power_setting_array {
+	struct msm_sensor_power_setting *power_setting_a;
+	struct msm_sensor_power_setting *power_setting;
+	uint16_t size_a;
+	uint16_t size;
+	struct msm_sensor_power_setting *power_down_setting_a;
+	struct msm_sensor_power_setting *power_down_setting;
+	uint16_t size_down_a;
+	uint16_t size_down;
+};
+#else //QCT
 struct msm_sensor_power_setting_array {
 	struct msm_sensor_power_setting  power_setting_a[MAX_POWER_CONFIG];
 	struct msm_sensor_power_setting *power_setting;
@@ -202,6 +218,8 @@ struct msm_sensor_power_setting_array {
 	struct msm_sensor_power_setting *power_down_setting;
 	uint16_t size_down;
 };
+#endif
+//                                                                     
 
 struct msm_sensor_init_params {
 	/* mask of modes supported: 2D, 3D */
@@ -248,6 +266,7 @@ struct msm_camera_i2c_reg_setting {
 	enum msm_camera_i2c_data_type data_type;
 	uint16_t delay;
 	enum msm_camera_qup_i2c_write_batch_t qup_i2c_batch;
+	uint16_t *value;	/*                                                            */
 };
 
 struct msm_camera_csid_vc_cfg {

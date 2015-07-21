@@ -77,6 +77,10 @@ static u32 mdss_fb_pseudo_palette[16] = {
 
 static struct msm_mdp_interface *mdp_instance;
 
+#ifdef CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL
+extern struct mdss_panel_data *pdata_lut_update;
+#endif
+
 static int mdss_fb_register(struct msm_fb_data_type *mfd);
 static int mdss_fb_open(struct fb_info *info, int user);
 static int mdss_fb_release(struct fb_info *info, int user);
@@ -498,6 +502,21 @@ static ssize_t mdss_fb_get_idle_notify(struct device *dev,
 	return ret;
 }
 
+#ifdef CONFIG_MACH_LGE
+static ssize_t mdss_fb_get_panel_name(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = fbi->par;
+	struct mdss_panel_info *pinfo = mfd->panel_info;
+	int ret;
+
+	ret = scnprintf(buf, PAGE_SIZE,"%s\n",pinfo->panel_name);
+
+	return ret;
+}
+#endif
+
 static ssize_t mdss_fb_get_panel_info(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -662,6 +681,9 @@ static DEVICE_ATTR(idle_time, S_IRUGO | S_IWUSR | S_IWGRP,
 	mdss_fb_get_idle_time, mdss_fb_set_idle_time);
 static DEVICE_ATTR(idle_notify, S_IRUGO, mdss_fb_get_idle_notify, NULL);
 static DEVICE_ATTR(msm_fb_panel_info, S_IRUGO, mdss_fb_get_panel_info, NULL);
+#ifdef CONFIG_MACH_LGE
+static DEVICE_ATTR(panel_type, S_IRUGO, mdss_fb_get_panel_name, NULL);
+#endif
 static DEVICE_ATTR(msm_fb_src_split_info, S_IRUGO, mdss_fb_get_src_split_info,
 	NULL);
 static DEVICE_ATTR(msm_fb_thermal_level, S_IRUGO | S_IWUSR,
@@ -676,6 +698,9 @@ static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_idle_time.attr,
 	&dev_attr_idle_notify.attr,
 	&dev_attr_msm_fb_panel_info.attr,
+#ifdef CONFIG_MACH_LGE
+	&dev_attr_panel_type.attr,
+#endif
 	&dev_attr_msm_fb_src_split_info.attr,
 	&dev_attr_msm_fb_thermal_level.attr,
 	&dev_attr_always_on.attr,
@@ -731,7 +756,10 @@ static int mdss_fb_probe(struct platform_device *pdev)
 	if (cell_index > fbi_list_index)
 		return -EPROBE_DEFER;
 
-
+#ifdef CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL
+	if (pdata_lut_update == NULL)
+		pdata_lut_update = pdata;
+#endif
 	/*
 	 * alloc framebuffer info + par data
 	 */
@@ -1128,6 +1156,15 @@ void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 		 */
 		if (mfd->bl_level_scaled == temp) {
 			mfd->bl_level = bkl_lvl;
+#ifdef CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL
+			if(mfd->bl_level !=0) {
+				pr_debug("backlight sent to panel :%d\n", temp);
+				pdata->set_backlight(pdata, temp);
+				mfd->bl_level = bkl_lvl;
+				mfd->bl_level_scaled = temp;
+				bl_notify_needed = true;
+			}
+#endif
 		} else {
 			pr_debug("backlight sent to panel :%d\n", temp);
 			pdata->set_backlight(pdata, temp);
