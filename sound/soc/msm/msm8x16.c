@@ -52,6 +52,10 @@
 
 #define WCD_MBHC_DEF_RLOADS 5
 
+#ifdef CONFIG_SND_SOC_TPS61256A_BOOST
+int ext_spk_boost_gpio = -1;
+#endif
+
 static int msm_btsco_rate = BTSCO_RATE_8KHZ;
 static int msm_btsco_ch = 1;
 
@@ -66,11 +70,14 @@ static int msm8x16_enable_extcodec_ext_clk(struct snd_soc_codec *codec,
 					int enable,	bool dapm);
 
 static int conf_int_codec_mux(struct msm8916_asoc_mach_data *pdata);
+#ifdef CONFIG_MACH_LGE
+static int external_micbias2_pullup = 0;
+#endif
 
 static struct wcd_mbhc_config mbhc_cfg = {
 	.read_fw_bin = false,
 	.calibration = NULL,
-	.detect_extn_cable = true,
+	.detect_extn_cable = false,		//           
 	.mono_stero_detection = false,
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = false,
@@ -725,7 +732,20 @@ static int msm_btsco_rate_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
 	pr_debug("%s: msm_btsco_rate  = %d", __func__, msm_btsco_rate);
+#ifdef CONFIG_MACH_LGE
+    switch (msm_btsco_rate) {
+    case BTSCO_RATE_16KHZ:
+        ucontrol->value.integer.value[0] = 1;
+        break;
+
+    case BTSCO_RATE_8KHZ:
+    default:
+        ucontrol->value.integer.value[0] = 0;
+        break;
+    }
+#else
 	ucontrol->value.integer.value[0] = msm_btsco_rate;
+#endif
 	return 0;
 }
 
@@ -733,12 +753,21 @@ static int msm_btsco_rate_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
 	switch (ucontrol->value.integer.value[0]) {
+#ifdef CONFIG_MACH_LGE
+    case 0:
+        msm_btsco_rate = BTSCO_RATE_8KHZ;
+        break;
+    case 1:
+        msm_btsco_rate = BTSCO_RATE_16KHZ;
+        break;
+#else
 	case 8000:
 		msm_btsco_rate = BTSCO_RATE_8KHZ;
 		break;
 	case 16000:
 		msm_btsco_rate = BTSCO_RATE_16KHZ;
 		break;
+#endif
 	default:
 		msm_btsco_rate = BTSCO_RATE_8KHZ;
 		break;
@@ -1085,6 +1114,35 @@ static void *def_msm8x16_wcd_mbhc_cal(void)
 	 * all btn_low corresponds to threshold for current source
 	 * all bt_high corresponds to threshold for Micbias
 	 */
+#ifdef CONFIG_MACH_LGE
+if(external_micbias2_pullup){
+	btn_low[0] = 180;   /* Hook-Key */
+	btn_high[0] = 180;
+	btn_low[1] = 276;   /* Volume Assist */
+	btn_high[1] = 276;
+	btn_low[2] = 384;   /* Volume Up */
+	btn_high[2] = 384;
+	btn_low[3] = 696;   /* Volume Down */
+	btn_high[3] = 696;
+	btn_low[4] = 700;
+	btn_high[4] = 700;
+	pr_info("[LGE MBHC] Temp cal2(2.2k). is applied.\n");
+}
+else{
+	btn_low[0] = 84;    /* Hook-Key */
+	btn_high[0] = 84;
+	btn_low[1] = 134;   /* Volume Assist */
+	btn_high[1] = 134;
+	btn_low[2] = 200;   /* Volume Up */
+	btn_high[2] = 200;
+	btn_low[3] = 400;   /* Volume Down */
+	btn_high[3] = 400;
+	btn_low[4] = 401;
+	btn_high[4] = 401;
+	pr_info("[LGE MBHC] Temp cal1. is applied.\n");
+}
+#else	/* Qualcomm Default Values */
+
 	btn_low[0] = 25;
 	btn_high[0] = 25;
 	btn_low[1] = 50;
@@ -1095,6 +1153,7 @@ static void *def_msm8x16_wcd_mbhc_cal(void)
 	btn_high[3] = 112;
 	btn_low[4] = 137;
 	btn_high[4] = 137;
+#endif
 
 	return msm8x16_wcd_cal;
 }
@@ -2192,6 +2251,11 @@ static int msm8x16_asoc_machine_probe(struct platform_device *pdev)
 		goto err;
 	}
 
+#ifdef CONFIG_MACH_LGE
+	ret = of_property_read_u32(pdev->dev.of_node, "lg,external-micbias2_pullup", &external_micbias2_pullup);
+	dev_err(&pdev->dev, "%s: external-micbias2_pullup = %d in dt node\n", __func__, external_micbias2_pullup);
+#endif
+
 	ret = of_property_read_u32(pdev->dev.of_node, mclk, &id);
 	if (ret) {
 		dev_err(&pdev->dev,
@@ -2327,13 +2391,38 @@ static int msm8x16_asoc_machine_probe(struct platform_device *pdev)
 			ret);
 		goto err;
 	}
+
+#ifdef CONFIG_SND_SOC_TPS61256A_BOOST
+	ext_spk_boost_gpio = of_get_named_gpio(pdev->dev.of_node,
+				"qcom,msm-spk-boost-gpios", 0);
+	if (ext_spk_boost_gpio < 0) {
+		dev_err(card->dev, "Looking up %s property in node %s failed %d\n",
+			"qcom,msm-spk-boost-gpios\n",
+			pdev->dev.of_node->full_name, ext_spk_boost_gpio);
+	} else {
+		ret = gpio_request(ext_spk_boost_gpio, "SPK_5V_EXT_BOOSTER");
+		if (ret) {
+			/* GPIO to enable EXT VDD exists, but failed request */
+			dev_err(card->dev,
+					"%s: Failed to request spk external booster gpio %d\n",
+					__func__, ext_spk_boost_gpio);
+			goto err;
+		}
+	}
+#endif
+
 	return 0;
 err:
+#ifndef CONFIG_MACH_LGE
 	devm_kfree(&pdev->dev, pdata);
+#endif
 	if (pdata->vaddr_gpio_mux_spkr_ctl)
 		iounmap(pdata->vaddr_gpio_mux_spkr_ctl);
 	if (pdata->vaddr_gpio_mux_mic_ctl)
 		iounmap(pdata->vaddr_gpio_mux_mic_ctl);
+#ifdef CONFIG_MACH_LGE
+	devm_kfree(&pdev->dev, pdata);
+#endif
 	return ret;
 }
 
